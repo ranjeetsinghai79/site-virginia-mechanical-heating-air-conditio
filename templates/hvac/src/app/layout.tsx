@@ -26,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ScrollProgress />
         <MagneticCursor />
         <SmoothScroll>{children}</SmoothScroll>
+        <script src="https://ai-reception-459352382653.us-central1.run.app/widget.js" data-config="d29a1e22-529b-474e-a176-14422d413612" async></script>
       </body>
     </html>
   )
