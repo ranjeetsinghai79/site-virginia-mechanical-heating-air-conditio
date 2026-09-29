@@ -3,12 +3,13 @@ import "./globals.css"
 import { config } from "@/lib/config"
 import { SmoothScroll, ScrollProgress, LoadingScreen, MagneticCursor } from "@core/web"
 import { FAQ_SCHEMA, HOWTO_SCHEMA } from "@/lib/aeo"
+import { PreviewControls } from "@/components/preview-controls"
 
 const { business } = config
 
 export const metadata: Metadata = {
   title: `${business.name} | ${business.address}`,
-  description: `${business.name} — Licensed HVAC & Plumbing serving ${business.serviceAreas.join(", ")}. 24/7 emergency service. Call ${business.phone}.`,
+  description: `${business.name} — licensed heating and air conditioning service for homes and businesses across ${business.serviceAreas.join(", ")}. Call ${business.phone}.`,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -25,8 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <LoadingScreen name={business.name} tagline={`${business.serviceAreas[0]} · Licensed & Insured`} />
         <ScrollProgress />
         <MagneticCursor />
-        <SmoothScroll>{children}</SmoothScroll>
-        <script src="/widget.js" data-config="d29a1e22-529b-474e-a176-14422d413612" async></script>
+        <PreviewControls><SmoothScroll>{children}</SmoothScroll></PreviewControls>
       </body>
     </html>
   )
