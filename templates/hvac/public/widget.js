@@ -14,6 +14,8 @@
  *   data-dark               header/launcher dark color (default #0d172b)
  *   data-name               label shown in the header (default "AI Assistant")
  *   data-position            "bottom-left" or "bottom-right" (default bottom-right)
+ *   data-auto-open           open the full panel on arrival (default false)
+ *   data-enabled             hard kill switch; "false" prevents mounting
  *
  * Runs inside a Shadow DOM so it never inherits or leaks CSS from the host
  * page. No build step, no dependencies — vanilla JS, ships as-is.
@@ -53,6 +55,8 @@
   var DARK = scriptEl.getAttribute('data-dark') || '#0d172b';
   var LABEL = scriptEl.getAttribute('data-name') || 'AI Assistant';
   var SIDE = scriptEl.getAttribute('data-position') === 'bottom-left' ? 'left' : 'right';
+  var AUTO_OPEN = scriptEl.getAttribute('data-auto-open') === 'true';
+  if (scriptEl.getAttribute('data-enabled') === 'false') return;
 
   // ── PCM helpers (ported from webcrew.app's avatar-widget.tsx) ──────────────
 
@@ -143,6 +147,9 @@
       '.avatar{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;}' +
       '.title{color:#fff;font-weight:700;font-size:14px;}' +
       '.status{color:rgba(255,255,255,.65);font-size:12px;}' +
+      '.mode-switch{display:flex;background:#eef2f6;border-radius:999px;padding:3px;margin:12px 14px 0;gap:3px;}' +
+      '.mode-btn{flex:1;border:0;border-radius:999px;padding:8px 10px;background:transparent;color:#64748b;font-weight:700;font-size:12px;cursor:pointer;}' +
+      '.mode-btn.active{background:#fff;color:' + DARK + ';box-shadow:0 2px 8px rgba(15,23,42,.12);}' +
       '.close{background:transparent;border:none;color:rgba(255,255,255,.75);cursor:pointer;font-size:18px;padding:4px;line-height:1;}' +
       '.body{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:8px;min-height:160px;}' +
       '.empty{color:#94a3b8;font-size:13px;text-align:center;margin-top:24px;}' +
@@ -177,8 +184,12 @@
         '</div>' +
         '<button class="close" aria-label="Close" data-role="close">✕</button>' +
       '</div>' +
+      '<div class="mode-switch" role="tablist" aria-label="Conversation mode">' +
+        '<button class="mode-btn active" data-role="chat-mode" role="tab">⌨ Chat</button>' +
+        '<button class="mode-btn" data-role="voice-mode" role="tab">🎤 Talk</button>' +
+      '</div>' +
       '<div class="body" data-role="body">' +
-        '<div class="empty" data-role="empty">Say hello, or ask a question.</div>' +
+        '<div class="empty" data-role="empty">Hi — I’m Virginia Mechanical’s virtual comfort assistant. How can I help today?</div>' +
       '</div>' +
       '<div class="footer">' +
         '<button class="mic-btn" data-role="mic" aria-label="Toggle microphone">🎤</button>' +
@@ -189,6 +200,7 @@
 
     var $ = function (role) { return panel.querySelector('[data-role="' + role + '"]'); };
     var bodyEl = $('body'), emptyEl = $('empty'), statusEl = $('status'), micBtn = $('mic'), inputEl = $('input'), sendBtn = $('send'), closeBtn = $('close');
+    var chatModeBtn = $('chat-mode'), voiceModeBtn = $('voice-mode');
     var launcherDot = launcher.querySelector('[data-role="launcher-dot"]');
     var headerDot = $('header-dot');
 
@@ -203,6 +215,8 @@
     var stream = null;
     var processor = null;
     var turnstileToken = '';
+    var mode = 'chat';
+    var voiceUnlocked = false;
 
     function setStatus(s) {
       status = s;
@@ -298,9 +312,8 @@
           try { msg = JSON.parse(event.data); } catch (e) { return; }
           if (msg.type === 'ready') {
             setStatus('listening');
-            startMic();
           } else if (msg.type === 'audio') {
-            playChunk(msg.data);
+            if (mode === 'voice' && voiceUnlocked) playChunk(msg.data);
           } else if (msg.type === 'text') {
             addBubble(msg.role, msg.text);
           } else if (msg.type === 'interrupted') {
@@ -396,9 +409,28 @@
     }
 
     function toggleMic() {
+      if (mode !== 'voice') { setMode('voice'); return; }
       if (stream) { stopMic(); }
-      else if (ws && ws.readyState === WebSocket.OPEN) { startMic(); }
+      else if (ws && ws.readyState === WebSocket.OPEN) { voiceUnlocked = true; playbackCtx.resume().catch(function () {}); startMic(); }
       else { openWidget(); }
+    }
+
+    function setMode(next) {
+      mode = next;
+      chatModeBtn.classList.toggle('active', next === 'chat');
+      voiceModeBtn.classList.toggle('active', next === 'voice');
+      inputEl.disabled = next === 'voice';
+      inputEl.placeholder = next === 'voice' ? 'Voice mode is active…' : 'Type a message…';
+      if (next === 'chat') {
+        stopMic();
+        statusEl.textContent = ws && ws.readyState === WebSocket.OPEN ? 'Online · Chat mode' : 'Connecting…';
+        inputEl.focus();
+      } else {
+        voiceUnlocked = true;
+        if (playbackCtx) playbackCtx.resume().catch(function () {});
+        statusEl.textContent = 'Voice mode · microphone on';
+        if (ws && ws.readyState === WebSocket.OPEN) startMic();
+      }
     }
 
     function openWidget() {
@@ -422,11 +454,18 @@
     launcher.addEventListener('click', openWidget);
     closeBtn.addEventListener('click', closeWidget);
     micBtn.addEventListener('click', toggleMic);
+    chatModeBtn.addEventListener('click', function () { setMode('chat'); });
+    voiceModeBtn.addEventListener('click', function () { setMode('voice'); });
     sendBtn.addEventListener('click', sendText);
     inputEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') sendText(); });
     window.addEventListener('beforeunload', teardown);
   }
 
-  if (document.readyState === 'complete' || document.readyState === 'interactive') mount();
-  else document.addEventListener('DOMContentLoaded', mount);
+  function boot() { mount(); if (AUTO_OPEN) setTimeout(function () {
+    var host = document.getElementById('webcrew-ai-widget-host');
+    var launcher = host && host.shadowRoot && host.shadowRoot.querySelector('.launcher');
+    if (launcher) launcher.click();
+  }, 650); }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') boot();
+  else document.addEventListener('DOMContentLoaded', boot);
 })();
