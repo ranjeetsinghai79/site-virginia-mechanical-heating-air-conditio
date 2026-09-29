@@ -118,7 +118,7 @@ export default function Home() {
         </form>
       </section>
 
-      <footer className={styles.footer}><div className={styles.brand}><span className={styles.mark}><Wrench size={20} /></span><span><b>VIRGINIA</b><small>MECHANICAL</small></span></div><p>7553 Carmelo Ave · Tracy, CA 95304</p><p>© 2026 · CA License #929944</p></footer>
+      <footer className={styles.footer}><div className={styles.brand}><span className={styles.mark}><Wrench size={20} /></span><span><b>VIRGINIA</b><small>MECHANICAL</small></span></div><p>7553 Carmelo Ave · Tracy, CA 95304</p><p>© 2026 · CA License #929944 · <a href="https://www.pexels.com" target="_blank" rel="noreferrer">Photography via Pexels</a></p></footer>
     </main>
   )
 }
